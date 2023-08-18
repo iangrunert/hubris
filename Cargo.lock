@@ -3824,6 +3824,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "stm32h7-nucleo-dns-sinkhole"
+version = "0.1.0"
+dependencies = [
+ "build-util",
+ "cfg-if",
+ "cortex-m",
+ "cortex-m-rt",
+ "drv-stm32h7-startup",
+ "kern",
+ "stm32h7",
+]
+
+[[package]]
 name = "stm32h7-update-server"
 version = "0.1.0"
 dependencies = [
@@ -4562,6 +4575,19 @@ dependencies = [
  "task-net-api",
  "userlib",
  "zerocopy",
+]
+
+[[package]]
+name = "task-udptest"
+version = "0.1.0"
+dependencies = [
+ "build-util",
+ "drv-user-leds-api",
+ "num-traits",
+ "serde",
+ "ssmarshal",
+ "task-net-api",
+ "userlib",
 ]
 
 [[package]]

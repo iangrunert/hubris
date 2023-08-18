@@ -1,0 +1,27 @@
+[package]
+name = "task-udptest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num-traits = { workspace = true }
+serde = { workspace = true }
+ssmarshal = { workspace = true }
+
+drv-user-leds-api = { path = "../../drv/user-leds-api" }
+task-net-api = { path = "../net-api" }
+userlib = { path = "../../sys/userlib", features = ["panic-messages"] }
+
+[build-dependencies]
+build-util = { path = "../../build/util" }
+
+[features]
+vlan = ["task-net-api/vlan"]
+
+# This section is here to discourage RLS/rust-analyzer from doing test builds,
+# since test builds don't work for cross compilation.
+[[bin]]
+name = "task-udptest"
+test = false
+doctest = false
+bench = false
