@@ -110,7 +110,7 @@ max-sizes = {flash = 32768, ram = 8192}
 stacksize = 4096
 start = true
 task-slots = ["net", "user_leds"]
-notifications = ["socket"]
+notifications = ["socket", "timer"]
 
 [tasks.hiffy]
 name = "task-hiffy"

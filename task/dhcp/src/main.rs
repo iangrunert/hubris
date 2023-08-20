@@ -30,9 +30,7 @@ const INFORM_HEADER: &[u8] = &[
     // no time passed yet, broadcast bit set
     0x00, 0x00, 0x10, 0x00,
     // ciaddr (4)
-    // client address - we're statically assigned here so fill it in
-    // TODO Duplication with task/net/src/main.rs self_assigned_iface_address
-    0xc0, 0xa8, 0x00, 0x2a,
+    0x00, 0x00, 0x00, 0x00,
     // yiaddr (4)
     // ignored
     0x00, 0x00, 0x00, 0x00,
@@ -48,9 +46,9 @@ const INFORM_HEADER: &[u8] = &[
 fn discover(SOCKET: SocketName) -> DhcpState {
     let user_leds = drv_user_leds_api::UserLeds::from(USER_LEDS.get_task_id());
 
-    user_leds.led_on(1).unwrap();
+    user_leds.led_on(0).unwrap();
+    user_leds.led_off(1).unwrap();
     user_leds.led_off(2).unwrap();
-    user_leds.led_off(3).unwrap();
 
     let net = NET.get_task_id();
     let net = Net::from(net);
@@ -118,19 +116,14 @@ fn discover(SOCKET: SocketName) -> DhcpState {
 fn readoffer(SOCKET: SocketName) -> DhcpState {
     let user_leds = drv_user_leds_api::UserLeds::from(USER_LEDS.get_task_id());
 
-    user_leds.led_off(1).unwrap();
-    user_leds.led_on(2).unwrap();
-    user_leds.led_off(3).unwrap();
+    user_leds.led_off(0).unwrap();
+    user_leds.led_on(1).unwrap();
+    user_leds.led_off(2).unwrap();
 
     let net = NET.get_task_id();
     let net = Net::from(net);
 
-    let mut attempts: u8 = 3;
-
-    while attempts > 0 {
-        attempts -= 1;
-        hl::sleep_for(100);
-
+    loop {
         let mut offer_msg: [u8; 576] = [0; 576];
 
         match net.recv_packet(SOCKET, LargePayloadBehavior::Discard, &mut offer_msg) {
@@ -139,13 +132,20 @@ fn readoffer(SOCKET: SocketName) -> DhcpState {
                 return DhcpState::Request;
             },
             Err(RecvError::QueueEmpty) => {
-                // Our incoming queue is empty. Wait for more packets.
+                // Our incoming queue is empty. Wait for more packets, for up to 10 seconds
+                let deadline = sys_get_timer().now + 10 * 1000;
+                sys_set_timer(Some(deadline), notifications::TIMER_MASK);
+
                 sys_recv_closed(
                     &mut [],
-                    notifications::SOCKET_MASK,
+                    notifications::SOCKET_MASK | notifications::TIMER_MASK,
                     TaskId::KERNEL,
                 )
                 .unwrap();
+
+                if sys_get_timer().now >= deadline {
+                    return DhcpState::Discover
+                }
             }
             Err(RecvError::ServerRestarted) => {
                 // `net` restarted (probably due to the watchdog); just retry.
@@ -162,9 +162,9 @@ fn readoffer(SOCKET: SocketName) -> DhcpState {
 fn request(SOCKET: SocketName) -> DhcpState {
     let user_leds = drv_user_leds_api::UserLeds::from(USER_LEDS.get_task_id());
 
+    user_leds.led_off(0).unwrap();
     user_leds.led_off(1).unwrap();
-    user_leds.led_off(2).unwrap();
-    user_leds.led_on(3).unwrap();
+    user_leds.led_on(2).unwrap();
 
     let net = NET.get_task_id();
     let net = Net::from(net);
@@ -188,8 +188,9 @@ fn request(SOCKET: SocketName) -> DhcpState {
     // set DHCP_Request
     // code len type
     request_msg[options_index..options_index+3].copy_from_slice(&[0x35, 0x01, 0x03]);
-    // requested ip address
+    // requested ip address - statically set to 192.168.0.42
     // code len address
+    // TODO Duplication with task/net/src/main.rs self_assigned_iface_address
     request_msg[options_index+3..options_index+9].copy_from_slice(&[0x32, 0x04, 0xc0, 0xa8, 0x00, 0x2a]);
     // host name
     // code len name
@@ -202,7 +203,7 @@ fn request(SOCKET: SocketName) -> DhcpState {
 
     loop {
         let meta = UdpMetadata {
-            addr: Address::Ipv4(Ipv4Address([0xc0, 0xa8, 0x00, 0x01])),
+            addr: Address::Ipv4(Ipv4Address([0xff, 0xff, 0xff, 0xff])),
             port: 67,
             size: request_msg.len() as u32,
             #[cfg(feature = "vlan")]
@@ -237,9 +238,9 @@ fn request(SOCKET: SocketName) -> DhcpState {
 fn idle() -> DhcpState {
     let user_leds = drv_user_leds_api::UserLeds::from(USER_LEDS.get_task_id());
 
+    user_leds.led_off(0).unwrap();
     user_leds.led_off(1).unwrap();
     user_leds.led_off(2).unwrap();
-    user_leds.led_off(3).unwrap();
 
     // Refresh every 12 hours
     // hl::sleep_for(1000 * 60 * 60 * 12);
