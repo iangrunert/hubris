@@ -5,7 +5,7 @@
 use crate::bsp_support;
 use crate::generated::{self, SOCKET_COUNT};
 use crate::notifications;
-use crate::{idl, link_local_iface_addr, MacAddressBlock};
+use crate::{idl, self_assigned_iface_address, MacAddressBlock};
 
 #[cfg(feature = "vlan")]
 use crate::generated::VLAN_RANGE;
@@ -22,7 +22,7 @@ use core::iter::zip;
 use heapless::Vec;
 use smoltcp::iface::{Interface, SocketHandle, SocketStorage};
 use smoltcp::socket::udp;
-use smoltcp::wire::{EthernetAddress, Ipv6Cidr};
+use smoltcp::wire::{EthernetAddress, Ipv4Cidr};
 use userlib::{sys_post, sys_refresh_task_id, UnwrapLite};
 use zerocopy::byteorder::U16;
 
@@ -362,7 +362,8 @@ where
         // Each of these is replicated once per VID. Loop over them in lockstep.
         for (i, (sockets, storage)) in zip(sockets.0, storage).enumerate() {
             let mac_addr = EthernetAddress::from_bytes(&mac);
-            let ipv6_addr = link_local_iface_addr(mac_addr);
+            // let ipv6_addr = link_local_iface_addr(mac_addr);
+            let ipv4_addr = self_assigned_iface_address();
 
             // Make some types explicit to try and make this clearer.
             let sockets: [udp::Socket<'_>; SOCKET_COUNT] = sockets;
@@ -372,8 +373,11 @@ where
             let mut device = mkdevice(i);
             let iface =
                 storage.iface.write(Interface::new(config, &mut device));
+            // iface.update_ip_addrs(|ip_addrs| {
+            //     ip_addrs.push(Ipv6Cidr::new(ipv6_addr, 64).into()).unwrap()
+            // });
             iface.update_ip_addrs(|ip_addrs| {
-                ip_addrs.push(Ipv6Cidr::new(ipv6_addr, 64).into()).unwrap()
+                ip_addrs.push(Ipv4Cidr::new(ipv4_addr, 32).into()).unwrap()
             });
 
             // Associate sockets with this interface.
@@ -384,7 +388,8 @@ where
             for (&h, port) in zip(&socket_handles, generated::SOCKET_PORTS) {
                 socket_set
                     .get_mut::<udp::Socket<'_>>(h)
-                    .bind((ipv6_addr, port))
+                    // .bind((ipv6_addr, port))
+                    .bind((ipv4_addr, port))
                     .unwrap_lite();
             }
 

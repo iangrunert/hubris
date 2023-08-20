@@ -23,7 +23,7 @@ drv-gimlet-seq-api = { path = "../../drv/gimlet-seq-api", optional = true }
 drv-psc-seq-api = { path = "../../drv/psc-seq-api", optional = true }
 drv-sidecar-seq-api = { path = "../../drv/sidecar-seq-api", optional = true }
 drv-spi-api = { path = "../../drv/spi-api", optional = true }
-drv-stm32h7-eth = { path = "../../drv/stm32h7-eth", features = ["ipv6"] }
+drv-stm32h7-eth = { path = "../../drv/stm32h7-eth", features = ["ipv4", "ipv6"] }
 drv-stm32xx-sys-api = { path = "../../drv/stm32xx-sys-api" }
 drv-stm32h7-spi-server-core = { path = "../../drv/stm32h7-spi-server-core", optional = true }
 drv-user-leds-api = { path = "../../drv/user-leds-api", optional = true }

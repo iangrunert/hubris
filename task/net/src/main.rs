@@ -322,6 +322,13 @@ fn link_local_iface_addr(
     smoltcp::wire::Ipv6Address(bytes)
 }
 
+// We self assign an ipv4 address of 192.168.0.42
+fn self_assigned_iface_address() -> smoltcp::wire::Ipv4Address {
+    return smoltcp::wire::Ipv4Address([
+        0xc0, 0xa8, 0x00, 0x2a
+    ]);
+}
+
 fn ethernet_capabilities(
     eth: &drv_stm32h7_eth::Ethernet,
 ) -> smoltcp::phy::DeviceCapabilities {

@@ -4006,6 +4006,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "task-dhcp"
+version = "0.1.0"
+dependencies = [
+ "build-util",
+ "drv-user-leds-api",
+ "num-traits",
+ "serde",
+ "ssmarshal",
+ "task-net-api",
+ "userlib",
+]
+
+[[package]]
 name = "task-dump-agent"
 version = "0.1.0"
 dependencies = [

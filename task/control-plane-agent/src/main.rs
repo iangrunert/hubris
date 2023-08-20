@@ -496,7 +496,7 @@ impl NetHandler {
     ) {
         ringbuf_entry!(Log::Rx(meta));
 
-        let Address::Ipv6(addr) = meta.addr;
+        let Address::Ipv4(addr) = meta.addr;
         let sender = gateway_messages::sp_impl::SocketAddrV6 {
             ip: addr.into(),
             port: meta.port,
