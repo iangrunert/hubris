@@ -15,11 +15,13 @@ enum DhcpState {
     Discover,
     ReadOffer,
     Request,
-    Idle
+    ReadAck,
+    Idle,
 }
 
 // Yes, I'm building this by hand
 // No, it's not ideal, but kinda fun!
+// I probably could've pulled in smoltcp::wire::DhcpRepr
 const INFORM_HEADER: &[u8] = &[
     // op, htype, hlen, hops,
     // boot request = 1, htype ethernet = 1, hlen mac address is 6, no hops
@@ -128,7 +130,19 @@ fn readoffer(SOCKET: SocketName) -> DhcpState {
 
         match net.recv_packet(SOCKET, LargePayloadBehavior::Discard, &mut offer_msg) {
             Ok(_) => {
-                // We should probably check the message, but we'll trust for now
+                // Check the xid
+                if offer_msg[4..8] != [0x3d, 0x3d, 0x3d, 0x3d] {
+                    continue;
+                }
+                // Check yiaddr is 192.168.0.42
+                if offer_msg[16..20] != [0xc0, 0xa8, 0x00, 0x2a] {
+                    continue;
+                }
+                // Check siaddr is from 192.168.0.1
+                if offer_msg[20..24] != [0xc0, 0xa8, 0x00, 0x01] {
+                    continue;
+                }
+                // TODO Check it's a DHCP Offer
                 return DhcpState::Request;
             },
             Err(RecvError::QueueEmpty) => {
@@ -230,9 +244,66 @@ fn request(SOCKET: SocketName) -> DhcpState {
         };
     }
 
-    // Really we should have a ReadAck state
-    // This will do for now
-    return DhcpState::Idle;
+    return DhcpState::ReadAck;
+}
+
+// Wait for the DHCPACK packet response from the router
+fn readack(SOCKET: SocketName) -> DhcpState {
+    let user_leds = drv_user_leds_api::UserLeds::from(USER_LEDS.get_task_id());
+
+    user_leds.led_on(0).unwrap();
+    user_leds.led_on(1).unwrap();
+    user_leds.led_on(2).unwrap();
+
+    let net = NET.get_task_id();
+    let net = Net::from(net);
+
+    loop {
+        let mut offer_msg: [u8; 576] = [0; 576];
+
+        match net.recv_packet(SOCKET, LargePayloadBehavior::Discard, &mut offer_msg) {
+            Ok(_) => {
+                // Check the xid
+                if offer_msg[4..8] != [0x3d, 0x3d, 0x3d, 0x3d] {
+                    continue;
+                }
+                // Check yiaddr is 192.168.0.42
+                if offer_msg[16..20] != [0xc0, 0xa8, 0x00, 0x2a] {
+                    continue;
+                }
+                // Check siaddr is from 192.168.0.1
+                if offer_msg[20..24] != [0xc0, 0xa8, 0x00, 0x01] {
+                    continue;
+                }
+                // TODO Check it's a DHCP Ack
+                return DhcpState::Idle;
+            },
+            Err(RecvError::QueueEmpty) => {
+                // Our incoming queue is empty. Wait for more packets, for up to 10 seconds
+                let deadline = sys_get_timer().now + 10 * 1000;
+                sys_set_timer(Some(deadline), notifications::TIMER_MASK);
+
+                sys_recv_closed(
+                    &mut [],
+                    notifications::SOCKET_MASK | notifications::TIMER_MASK,
+                    TaskId::KERNEL,
+                )
+                .unwrap();
+
+                if sys_get_timer().now >= deadline {
+                    // Ran out of time, send another Discover
+                    return DhcpState::Discover
+                }
+            }
+            Err(RecvError::ServerRestarted) => {
+                // `net` restarted (probably due to the watchdog); just retry.
+            }
+            Err(RecvError::NotYours) => panic!(),
+            Err(RecvError::Other) => panic!(),
+        };
+    }
+
+    return DhcpState::Discover;
 }
 
 fn idle() -> DhcpState {
@@ -243,9 +314,7 @@ fn idle() -> DhcpState {
     user_leds.led_off(2).unwrap();
 
     // Refresh every 12 hours
-    // hl::sleep_for(1000 * 60 * 60 * 12);
-    // Refresh every 30 seconds
-    hl::sleep_for(1000 * 30);
+    hl::sleep_for(1000 * 60 * 60 * 12);
 
     return DhcpState::Discover;
 }
@@ -265,6 +334,9 @@ fn main() -> ! {
             },
             DhcpState::Request => {
                 current_state = request(SOCKET);
+            },
+            DhcpState::ReadAck => {
+                current_state = readack(SOCKET);
             },
             DhcpState::Idle => {
                 current_state = idle();
